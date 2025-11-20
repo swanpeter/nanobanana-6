@@ -468,29 +468,6 @@ def init_history() -> None:
         st.session_state.history: List[Dict[str, object]] = []
 
 
-def open_image_modal(image_id: str, image_bytes: bytes) -> None:
-    """Open a modal for the requested image."""
-    st.session_state["modal_image_id"] = image_id
-    st.session_state["modal_image_bytes"] = image_bytes
-
-
-def close_image_modal() -> None:
-    st.session_state.pop("modal_image_id", None)
-    st.session_state.pop("modal_image_bytes", None)
-
-
-def render_modal_if_needed() -> None:
-    image_bytes = st.session_state.get("modal_image_bytes")
-    image_id = st.session_state.get("modal_image_id")
-    if not image_bytes or not image_id:
-        return
-    with st.modal("画像を拡大表示", key=f"modal_{image_id}"):
-        st.image(image_bytes, use_column_width=True)
-        if st.button("閉じる", key=f"close_{image_id}"):
-            close_image_modal()
-            rerun_app()
-
-
 def render_history() -> None:
     if not st.session_state.history:
         return
@@ -504,9 +481,8 @@ def render_history() -> None:
             if not isinstance(image_id, str):
                 image_id = f"img_{uuid.uuid4().hex}"
                 entry["id"] = image_id
-            st.image(image_bytes, use_column_width=True, caption="サムネイル")
-            if st.button("拡大表示", key=f"open_{image_id}"):
-                open_image_modal(image_id, image_bytes)
+            with st.expander("画像を表示", expanded=True):
+                st.image(image_bytes, use_column_width=True, caption="生成画像")
         prompt_display = prompt_text.strip()
         st.markdown("**Prompt**")
         if prompt_display:
@@ -514,7 +490,6 @@ def render_history() -> None:
         else:
             st.text("(未入力)")
         st.divider()
-    render_modal_if_needed()
 
 
 def main() -> None:
