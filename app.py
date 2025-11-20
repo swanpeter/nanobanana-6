@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import json
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 try:
     from streamlit.runtime.secrets import StreamlitSecretNotFoundError
@@ -469,192 +468,27 @@ def init_history() -> None:
         st.session_state.history: List[Dict[str, object]] = []
 
 
-def ensure_lightbox_assets() -> None:
-    components.html(
-        """
-        <script>
-        (function () {
-            const parentWindow = window.parent;
-            if (!parentWindow) {
-                return;
-            }
-
-            try {
-                delete parentWindow.__streamlitLightbox;
-            } catch (err) {
-                parentWindow.__streamlitLightbox = undefined;
-            }
-            parentWindow.__streamlitLightboxInitialized = false;
-            const doc = parentWindow.document;
-
-            if (!doc.getElementById("streamlit-lightbox-style")) {
-                const style = doc.createElement("style");
-                style.id = "streamlit-lightbox-style";
-                style.textContent = `
-                .streamlit-lightbox-thumb {
-                    width: 100%;
-                    display: block;
-                    border-radius: 12px;
-                    cursor: pointer;
-                    transition: transform 0.16s ease-in-out;
-                    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-                    margin: 0 auto 0.75rem auto;
-                }
-                .streamlit-lightbox-thumb:hover {
-                    transform: scale(1.02);
-                }
-                `;
-                doc.head.appendChild(style);
-            }
-
-            parentWindow.__streamlitLightbox = (function () {
-                let overlay = null;
-                let keyHandler = null;
-
-                function hide() {
-                    if (!overlay) {
-                        return;
-                    }
-                    overlay.style.opacity = "0";
-                    const originalOverflow = overlay.getAttribute("data-original-overflow") || "";
-                    doc.body.style.overflow = originalOverflow;
-                    setTimeout(function () {
-                        if (overlay && overlay.parentNode) {
-                            overlay.parentNode.removeChild(overlay);
-                        }
-                        overlay = null;
-                    }, 180);
-                    if (keyHandler) {
-                        parentWindow.removeEventListener("keydown", keyHandler);
-                        keyHandler = null;
-                    }
-                }
-
-                function show(src) {
-                    hide();
-                    overlay = doc.createElement("div");
-                    overlay.id = "streamlit-lightbox-overlay";
-                    overlay.style.position = "fixed";
-                    overlay.style.zIndex = "10000";
-                    overlay.style.top = "0";
-                    overlay.style.left = "0";
-                    overlay.style.right = "0";
-                    overlay.style.bottom = "0";
-                    overlay.style.display = "flex";
-                    overlay.style.justifyContent = "center";
-                    overlay.style.alignItems = "center";
-                    overlay.style.background = "rgba(0, 0, 0, 0.92)";
-                    overlay.style.cursor = "zoom-out";
-                    overlay.style.opacity = "0";
-                    overlay.style.transition = "opacity 0.18s ease-in-out";
-                    overlay.setAttribute("data-original-overflow", doc.body.style.overflow || "");
-                    doc.body.style.overflow = "hidden";
-
-                    const full = doc.createElement("img");
-                    full.src = src;
-                    full.alt = "Generated image fullscreen";
-                    full.style.maxWidth = "100vw";
-                    full.style.maxHeight = "100vh";
-                    full.style.objectFit = "contain";
-                    full.style.boxShadow = "0 20px 45px rgba(0, 0, 0, 0.5)";
-                    full.style.borderRadius = "0";
-
-                    overlay.appendChild(full);
-                    overlay.addEventListener("click", hide);
-
-                    keyHandler = function (event) {
-                        if (event.key === "Escape") {
-                            hide();
-                        }
-                    };
-                    parentWindow.addEventListener("keydown", keyHandler);
-
-                    doc.body.appendChild(overlay);
-                    requestAnimationFrame(function () {
-                        overlay.style.opacity = "1";
-                    });
-                }
-
-                return { show, hide };
-            })();
-        })();
-        </script>
-        """,
-        height=0,
-        scrolling=False,
-    )
+def open_image_modal(image_id: str, image_bytes: bytes) -> None:
+    """Open a modal for the requested image."""
+    st.session_state["modal_image_id"] = image_id
+    st.session_state["modal_image_bytes"] = image_bytes
 
 
-def render_clickable_image(image_bytes: bytes, element_id: str) -> None:
-    ensure_lightbox_assets()
-    encoded = base64.b64encode(image_bytes).decode("utf-8")
-    image_src = f"data:image/png;base64,{encoded}"
-    image_src_json = json.dumps(image_src)
-    components.html(
-        f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{
-            margin: 0;
-            padding: 0;
-            background: transparent;
-        }}
-        img {{
-            width: 100%;
-            display: block;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: transform 0.16s ease-in-out;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-        }}
-        img:hover {{
-            transform: scale(1.02);
-        }}
-    </style>
-</head>
-<body>
-    <img id="thumb" src="{image_src}" alt="Generated image">
-    <script>
-    (function() {{
-        const img = document.getElementById("thumb");
-        if (!img) {{
-            return;
-        }}
+def close_image_modal() -> None:
+    st.session_state.pop("modal_image_id", None)
+    st.session_state.pop("modal_image_bytes", None)
 
-        function resizeFrame() {{
-            const frame = window.frameElement;
-            if (!frame) {{
-                return;
-            }}
-            const frameWidth = frame.getBoundingClientRect().width || img.naturalWidth || img.clientWidth || 0;
-            const ratio = img.naturalWidth ? (img.naturalHeight / Math.max(img.naturalWidth, 1)) : (img.clientHeight / Math.max(img.clientWidth, 1) || 1);
-            const height = frameWidth ? Math.max(160, frameWidth * ratio) : (img.clientHeight || img.naturalHeight || 320);
-            frame.style.height = height + "px";
-        }}
 
-        if (img.complete) {{
-            resizeFrame();
-        }} else {{
-            img.addEventListener("load", resizeFrame);
-        }}
-        window.addEventListener("resize", resizeFrame);
-        setTimeout(resizeFrame, 60);
-
-        img.addEventListener("click", function() {{
-            if (window.parent && window.parent.__streamlitLightbox) {{
-                window.parent.__streamlitLightbox.show({image_src_json});
-            }}
-        }});
-    }})();
-    </script>
-</body>
-</html>
-""",
-        height=700,
-        scrolling=False,
-    )
+def render_modal_if_needed() -> None:
+    image_bytes = st.session_state.get("modal_image_bytes")
+    image_id = st.session_state.get("modal_image_id")
+    if not image_bytes or not image_id:
+        return
+    with st.modal("画像を拡大表示", key=f"modal_{image_id}"):
+        st.image(image_bytes, use_column_width=True)
+        if st.button("閉じる", key=f"close_{image_id}"):
+            close_image_modal()
+            rerun_app()
 
 
 def render_history() -> None:
@@ -670,7 +504,9 @@ def render_history() -> None:
             if not isinstance(image_id, str):
                 image_id = f"img_{uuid.uuid4().hex}"
                 entry["id"] = image_id
-            render_clickable_image(image_bytes, image_id)
+            st.image(image_bytes, use_column_width=True, caption="サムネイル")
+            if st.button("拡大表示", key=f"open_{image_id}"):
+                open_image_modal(image_id, image_bytes)
         prompt_display = prompt_text.strip()
         st.markdown("**Prompt**")
         if prompt_display:
@@ -678,6 +514,7 @@ def render_history() -> None:
         else:
             st.text("(未入力)")
         st.divider()
+    render_modal_if_needed()
 
 
 def main() -> None:
