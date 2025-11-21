@@ -4,6 +4,7 @@ import io
 import os
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+from html import escape
 
 import json
 
@@ -476,6 +477,7 @@ def ensure_image_toggle_assets() -> None:
         """
 <style>
 .nb-img-shell { position: relative; }
+.nb-img-shell img { display: block; margin: 0 auto; }
 .nb-img {
     max-width: 100%;
     height: auto;
@@ -486,15 +488,17 @@ def ensure_image_toggle_assets() -> None:
 }
 .nb-img:hover { box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14); }
 .nb-img.nb-full {
-    position: fixed;
+    position: fixed !important;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: min(92vw, 1400px);
-    max-height: 92vh;
+    width: min(92vw, 1400px) !important;
+    max-height: 92vh !important;
+    max-width: 92vw !important;
     z-index: 9999;
     box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
     cursor: zoom-out;
+    object-fit: contain;
 }
 #nb-img-overlay {
     position: fixed;
@@ -549,16 +553,32 @@ def ensure_image_toggle_assets() -> None:
     )
 
 
-def render_clickable_image(image_bytes: bytes, alt_text: str = "生成画像") -> None:
+def render_clickable_image(image_bytes: bytes, alt_text: str = "生成画像", image_key: Optional[str] = None) -> None:
     if not image_bytes:
         return
+    unique_key = image_key or uuid.uuid4().hex
     ensure_image_toggle_assets()
     encoded = base64.b64encode(image_bytes).decode("utf-8")
+    safe_alt = escape(alt_text)
+    img_dom_id = f"nb-img-{unique_key}"
     st.markdown(
         f"""
 <div class="nb-img-shell">
-  <img src="data:image/png;base64,{encoded}" alt="{alt_text}" class="nb-img" onclick="nbToggleImage(this)" loading="lazy" />
+  <img id="{img_dom_id}" src="data:image/png;base64,{encoded}" alt="{safe_alt}" class="nb-img" loading="lazy" aria-label="{safe_alt}" />
 </div>
+<script>
+(function() {{
+  const img = document.getElementById('{img_dom_id}');
+  if (!img) return;
+  img.addEventListener('click', function(ev) {{
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (typeof window.nbToggleImage === 'function') {{
+      window.nbToggleImage(this);
+    }}
+  }});
+}})();
+</script>
         """,
         unsafe_allow_html=True,
     )
@@ -577,7 +597,7 @@ def render_history() -> None:
             if not isinstance(image_id, str):
                 image_id = f"img_{uuid.uuid4().hex}"
                 entry["id"] = image_id
-            render_clickable_image(image_bytes, alt_text="生成画像")
+            render_clickable_image(image_bytes, alt_text="生成画像", image_key=image_id)
         prompt_display = prompt_text.strip()
         st.markdown("**Prompt**")
         if prompt_display:
