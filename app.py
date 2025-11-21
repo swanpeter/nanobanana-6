@@ -481,8 +481,7 @@ def render_history() -> None:
             if not isinstance(image_id, str):
                 image_id = f"img_{uuid.uuid4().hex}"
                 entry["id"] = image_id
-            with st.expander("画像を表示", expanded=True):
-                st.image(image_bytes, use_container_width=True, caption="生成画像")
+            st.image(image_bytes, use_container_width=True, caption="生成画像")
         prompt_display = prompt_text.strip()
         st.markdown("**Prompt**")
         if prompt_display:
