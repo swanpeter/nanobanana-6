@@ -374,7 +374,7 @@ def sanitize_filename_component(value: str, max_length: int = 80) -> str:
 def build_prompt_based_filename(prompt_text: str) -> str:
     prompt_component = sanitize_filename_component(prompt_text or "prompt", max_length=80)
     unique_suffix = uuid.uuid4().hex
-    return f"user05_{prompt_component}_{unique_suffix}.png"
+    return f"user06_{prompt_component}_{unique_suffix}.png"
 
 
 def upload_image_to_gcs(
