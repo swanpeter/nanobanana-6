@@ -57,7 +57,7 @@ def rerun_app() -> None:
 
 TITLE = "Gemini 画像生成"
 MODEL_NAME = "models/gemini-3-pro-image-preview"
-IMAGE_ASPECT_RATIO = "16:9"
+IMAGE_ASPECT_RATIO = "1920:1080"
 DEFAULT_PROMPT_SUFFIX = (
     "((masterpiece, best quality, ultra-detailed, photorealistic, 8k, sharp focus))"
 )
@@ -482,7 +482,7 @@ def render_history() -> None:
                 image_id = f"img_{uuid.uuid4().hex}"
                 entry["id"] = image_id
             with st.expander("画像を表示", expanded=True):
-                st.image(image_bytes, use_column_width=True, caption="生成画像")
+                st.image(image_bytes, use_container_width=True, caption="生成画像")
         prompt_display = prompt_text.strip()
         st.markdown("**Prompt**")
         if prompt_display:
