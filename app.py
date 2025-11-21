@@ -57,7 +57,7 @@ def rerun_app() -> None:
 
 TITLE = "Gemini 画像生成"
 MODEL_NAME = "models/gemini-3-pro-image-preview"
-IMAGE_ASPECT_RATIO = "1920:1080"
+IMAGE_ASPECT_RATIO = "16:9"
 DEFAULT_PROMPT_SUFFIX = (
     "((masterpiece, best quality, ultra-detailed, photorealistic, 8k, sharp focus))"
 )
