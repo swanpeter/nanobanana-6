@@ -4,11 +4,11 @@ import io
 import os
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, Tuple
-from html import escape
 
 import json
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 try:
     from streamlit.runtime.secrets import StreamlitSecretNotFoundError
@@ -374,7 +374,7 @@ def sanitize_filename_component(value: str, max_length: int = 80) -> str:
 def build_prompt_based_filename(prompt_text: str) -> str:
     prompt_component = sanitize_filename_component(prompt_text or "prompt", max_length=80)
     unique_suffix = uuid.uuid4().hex
-    return f"user_wide_01_{prompt_component}_{unique_suffix}.png"
+    return f"user05_{prompt_component}_{unique_suffix}.png"
 
 
 def upload_image_to_gcs(
@@ -469,118 +469,191 @@ def init_history() -> None:
         st.session_state.history: List[Dict[str, object]] = []
 
 
-def ensure_image_toggle_assets() -> None:
-    if st.session_state.get("nb_image_toggle_assets_loaded"):
-        return
-    st.session_state["nb_image_toggle_assets_loaded"] = True
-    st.markdown(
+def ensure_lightbox_assets() -> None:
+    components.html(
         """
-<style>
-.nb-img-shell { position: relative; }
-.nb-img-shell img { display: block; margin: 0 auto; }
-.nb-img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    cursor: zoom-in;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.nb-img:hover { box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14); }
-.nb-img.nb-full {
-    position: fixed !important;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(92vw, 1400px) !important;
-    max-height: 92vh !important;
-    max-width: 92vw !important;
-    z-index: 9999;
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
-    cursor: zoom-out;
-    object-fit: contain;
-}
-#nb-img-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    z-index: 9998;
-    display: none;
-}
-</style>
-<script>
-(function() {
-  if (window.nbImageToggleInitialized) return;
-  window.nbImageToggleInitialized = true;
+        <script>
+        (function () {
+            const parentWindow = window.parent;
+            if (!parentWindow) {
+                return;
+            }
 
-  const overlay = document.createElement('div');
-  overlay.id = 'nb-img-overlay';
-  overlay.onclick = () => {
-    const active = document.querySelector('.nb-img.nb-full');
-    if (active) active.classList.remove('nb-full');
-    overlay.style.display = 'none';
-    document.body.style.overflow = '';
-  };
+            try {
+                delete parentWindow.__streamlitLightbox;
+            } catch (err) {
+                parentWindow.__streamlitLightbox = undefined;
+            }
+            parentWindow.__streamlitLightboxInitialized = false;
+            const doc = parentWindow.document;
 
-  const appendOverlay = () => {
-    if (!document.getElementById('nb-img-overlay')) {
-      document.body.appendChild(overlay);
-    }
-  };
+            if (!doc.getElementById("streamlit-lightbox-style")) {
+                const style = doc.createElement("style");
+                style.id = "streamlit-lightbox-style";
+                style.textContent = `
+                .streamlit-lightbox-thumb {
+                    width: 100%;
+                    display: block;
+                    border-radius: 12px;
+                    cursor: pointer;
+                    transition: transform 0.16s ease-in-out;
+                    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+                    margin: 0 auto 0.75rem auto;
+                }
+                .streamlit-lightbox-thumb:hover {
+                    transform: scale(1.02);
+                }
+                `;
+                doc.head.appendChild(style);
+            }
 
-  if (document.body) {
-    appendOverlay();
-  } else {
-    document.addEventListener('DOMContentLoaded', appendOverlay);
-  }
+            parentWindow.__streamlitLightbox = (function () {
+                let overlay = null;
+                let keyHandler = null;
 
-  window.nbToggleImage = function(img) {
-    const active = document.querySelector('.nb-img.nb-full');
-    if (active && active !== img) {
-      active.classList.remove('nb-full');
-    }
-    const isActive = img.classList.toggle('nb-full');
-    const overlayEl = document.getElementById('nb-img-overlay');
-    if (overlayEl) {
-      overlayEl.style.display = isActive ? 'block' : 'none';
-    }
-    document.body.style.overflow = isActive ? 'hidden' : '';
-  };
-})();
-</script>
+                function hide() {
+                    if (!overlay) {
+                        return;
+                    }
+                    overlay.style.opacity = "0";
+                    const originalOverflow = overlay.getAttribute("data-original-overflow") || "";
+                    doc.body.style.overflow = originalOverflow;
+                    setTimeout(function () {
+                        if (overlay && overlay.parentNode) {
+                            overlay.parentNode.removeChild(overlay);
+                        }
+                        overlay = null;
+                    }, 180);
+                    if (keyHandler) {
+                        parentWindow.removeEventListener("keydown", keyHandler);
+                        keyHandler = null;
+                    }
+                }
+
+                function show(src) {
+                    hide();
+                    overlay = doc.createElement("div");
+                    overlay.id = "streamlit-lightbox-overlay";
+                    overlay.style.position = "fixed";
+                    overlay.style.zIndex = "10000";
+                    overlay.style.top = "0";
+                    overlay.style.left = "0";
+                    overlay.style.right = "0";
+                    overlay.style.bottom = "0";
+                    overlay.style.display = "flex";
+                    overlay.style.justifyContent = "center";
+                    overlay.style.alignItems = "center";
+                    overlay.style.background = "rgba(0, 0, 0, 0.92)";
+                    overlay.style.cursor = "zoom-out";
+                    overlay.style.opacity = "0";
+                    overlay.style.transition = "opacity 0.18s ease-in-out";
+                    overlay.setAttribute("data-original-overflow", doc.body.style.overflow || "");
+                    doc.body.style.overflow = "hidden";
+
+                    const full = doc.createElement("img");
+                    full.src = src;
+                    full.alt = "Generated image fullscreen";
+                    full.style.maxWidth = "100vw";
+                    full.style.maxHeight = "100vh";
+                    full.style.objectFit = "contain";
+                    full.style.boxShadow = "0 20px 45px rgba(0, 0, 0, 0.5)";
+                    full.style.borderRadius = "0";
+
+                    overlay.appendChild(full);
+                    overlay.addEventListener("click", hide);
+
+                    keyHandler = function (event) {
+                        if (event.key === "Escape") {
+                            hide();
+                        }
+                    };
+                    parentWindow.addEventListener("keydown", keyHandler);
+
+                    doc.body.appendChild(overlay);
+                    requestAnimationFrame(function () {
+                        overlay.style.opacity = "1";
+                    });
+                }
+
+                return { show, hide };
+            })();
+        })();
+        </script>
         """,
-        unsafe_allow_html=True,
+        height=0,
+        scrolling=False,
     )
 
 
-def render_clickable_image(image_bytes: bytes, alt_text: str = "生成画像", image_key: Optional[str] = None) -> None:
-    if not image_bytes:
-        return
-    unique_key = image_key or uuid.uuid4().hex
-    ensure_image_toggle_assets()
+def render_clickable_image(image_bytes: bytes, element_id: str) -> None:
+    ensure_lightbox_assets()
     encoded = base64.b64encode(image_bytes).decode("utf-8")
-    safe_alt = escape(alt_text)
-    img_dom_id = f"nb-img-{unique_key}"
-    st.markdown(
-        f"""
-<div class="nb-img-shell">
-  <img id="{img_dom_id}" src="data:image/png;base64,{encoded}" alt="{safe_alt}" class="nb-img" loading="lazy" aria-label="{safe_alt}" />
-</div>
-<script>
-(function() {{
-  const img = document.getElementById('{img_dom_id}');
-  if (!img) return;
-  img.addEventListener('click', function(ev) {{
-    ev.preventDefault();
-    ev.stopPropagation();
-    if (typeof window.nbToggleImage === 'function') {{
-      window.nbToggleImage(this);
-    }}
-  }});
-}})();
-</script>
-        """,
-        unsafe_allow_html=True,
+    image_src = f"data:image/png;base64,{encoded}"
+    image_src_json = json.dumps(image_src)
+    components.html(
+        f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            background: transparent;
+        }}
+        img {{
+            width: 100%;
+            display: block;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.16s ease-in-out;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        }}
+        img:hover {{
+            transform: scale(1.02);
+        }}
+    </style>
+</head>
+<body>
+    <img id="thumb" src="{image_src}" alt="Generated image">
+    <script>
+    (function() {{
+        const img = document.getElementById("thumb");
+        if (!img) {{
+            return;
+        }}
+
+        function resizeFrame() {{
+            const frame = window.frameElement;
+            if (!frame) {{
+                return;
+            }}
+            const frameWidth = frame.getBoundingClientRect().width || img.naturalWidth || img.clientWidth || 0;
+            const ratio = img.naturalWidth ? (img.naturalHeight / Math.max(img.naturalWidth, 1)) : (img.clientHeight / Math.max(img.clientWidth, 1) || 1);
+            const height = frameWidth ? Math.max(160, frameWidth * ratio) : (img.clientHeight || img.naturalHeight || 320);
+            frame.style.height = height + "px";
+        }}
+
+        if (img.complete) {{
+            resizeFrame();
+        }} else {{
+            img.addEventListener("load", resizeFrame);
+        }}
+        window.addEventListener("resize", resizeFrame);
+        setTimeout(resizeFrame, 60);
+
+        img.addEventListener("click", function() {{
+            if (window.parent && window.parent.__streamlitLightbox) {{
+                window.parent.__streamlitLightbox.show({image_src_json});
+            }}
+        }});
+    }})();
+    </script>
+</body>
+</html>
+""",
+        height=700,
+        scrolling=False,
     )
 
 
@@ -597,7 +670,7 @@ def render_history() -> None:
             if not isinstance(image_id, str):
                 image_id = f"img_{uuid.uuid4().hex}"
                 entry["id"] = image_id
-            render_clickable_image(image_bytes, alt_text="生成画像", image_key=image_id)
+            render_clickable_image(image_bytes, image_id)
         prompt_display = prompt_text.strip()
         st.markdown("**Prompt**")
         if prompt_display:
