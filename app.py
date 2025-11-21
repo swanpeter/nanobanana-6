@@ -652,7 +652,7 @@ def render_clickable_image(image_bytes: bytes, element_id: str) -> None:
 </body>
 </html>
 """,
-        height=300,
+        height=400,
         scrolling=False,
     )
 
