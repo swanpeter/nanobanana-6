@@ -468,6 +468,102 @@ def init_history() -> None:
         st.session_state.history: List[Dict[str, object]] = []
 
 
+def ensure_image_toggle_assets() -> None:
+    if st.session_state.get("nb_image_toggle_assets_loaded"):
+        return
+    st.session_state["nb_image_toggle_assets_loaded"] = True
+    st.markdown(
+        """
+<style>
+.nb-img-shell { position: relative; }
+.nb-img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    cursor: zoom-in;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.nb-img:hover { box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14); }
+.nb-img.nb-full {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(92vw, 1400px);
+    max-height: 92vh;
+    z-index: 9999;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+    cursor: zoom-out;
+}
+#nb-img-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 9998;
+    display: none;
+}
+</style>
+<script>
+(function() {
+  if (window.nbImageToggleInitialized) return;
+  window.nbImageToggleInitialized = true;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'nb-img-overlay';
+  overlay.onclick = () => {
+    const active = document.querySelector('.nb-img.nb-full');
+    if (active) active.classList.remove('nb-full');
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  };
+
+  const appendOverlay = () => {
+    if (!document.getElementById('nb-img-overlay')) {
+      document.body.appendChild(overlay);
+    }
+  };
+
+  if (document.body) {
+    appendOverlay();
+  } else {
+    document.addEventListener('DOMContentLoaded', appendOverlay);
+  }
+
+  window.nbToggleImage = function(img) {
+    const active = document.querySelector('.nb-img.nb-full');
+    if (active && active !== img) {
+      active.classList.remove('nb-full');
+    }
+    const isActive = img.classList.toggle('nb-full');
+    const overlayEl = document.getElementById('nb-img-overlay');
+    if (overlayEl) {
+      overlayEl.style.display = isActive ? 'block' : 'none';
+    }
+    document.body.style.overflow = isActive ? 'hidden' : '';
+  };
+})();
+</script>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_clickable_image(image_bytes: bytes, alt_text: str = "生成画像") -> None:
+    if not image_bytes:
+        return
+    ensure_image_toggle_assets()
+    encoded = base64.b64encode(image_bytes).decode("utf-8")
+    st.markdown(
+        f"""
+<div class="nb-img-shell">
+  <img src="data:image/png;base64,{encoded}" alt="{alt_text}" class="nb-img" onclick="nbToggleImage(this)" loading="lazy" />
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_history() -> None:
     if not st.session_state.history:
         return
@@ -481,7 +577,7 @@ def render_history() -> None:
             if not isinstance(image_id, str):
                 image_id = f"img_{uuid.uuid4().hex}"
                 entry["id"] = image_id
-            st.image(image_bytes, use_container_width=True, caption="生成画像")
+            render_clickable_image(image_bytes, alt_text="生成画像")
         prompt_display = prompt_text.strip()
         st.markdown("**Prompt**")
         if prompt_display:
